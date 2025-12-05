@@ -1,0 +1,374 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { RefreshCcw, Lock, Unlock, AlertTriangle, CheckCircle, Database } from 'lucide-react';
+
+// --- CONFIGURATION CONSTANTS (Alignment Weighting Interface) ---
+// Architectural constraint: Beta (Alignment) must always be significantly greater than Alpha (Optimization)
+const DEFAULT_ALPHA = 0.2; // Weight for Optimization Sacrifice (D_opt)
+const DEFAULT_BETA = 0.8;  // Weight for Alignment Dissonance (D_align)
+
+// Audit-ready Constraint Set (N) placeholder
+const CONSTRAINT_SET = [
+    "Non-Disclosure of PII (Art. 5(1) GDPR)",
+    "No Incitement to Violence (Annex III AI Act)",
+    "Bias Mitigation in High-Risk Applications",
+    "No Generation of CSAM/Illegal Content",
+    "Transparency on Deepfake Generation",
+];
+
+// Utility function for generating simulated IDs and forces
+const generateId = () => Math.random().toString(36).substring(2, 9);
+const formatValue = (v) => (v * 100).toFixed(2); // Convert 0-1 to percentage-like string
+
+// --- UI Component: Metric Gauge ---
+const MetricGauge = ({ title, value, max, colorClass, icon: Icon, description }) => {
+    const percentage = Math.min((value / max) * 100, 100);
+    const displayValue = formatValue(value);
+
+    return (
+        <div className="bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700 h-full flex flex-col justify-between">
+            <div>
+                <div className="flex items-center space-x-2 text-gray-300 mb-2">
+                    <Icon className={`w-5 h-5 ${colorClass}`} />
+                    <h3 className="text-sm font-semibold uppercase tracking-wider">{title}</h3>
+                </div>
+                <p className="text-4xl font-extrabold text-white">
+                    {displayValue}<span className="text-xl font-normal">%</span>
+                </p>
+            </div>
+            <div className="mt-4">
+                <div className="w-full bg-gray-700 rounded-full h-2.5">
+                    <div
+                        className={`h-2.5 rounded-full ${colorClass}`}
+                        style={{ width: `${percentage}%`, transition: 'width 0.5s ease-out' }}
+                    ></div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">{description}</p>
+            </div>
+        </div>
+    );
+};
+
+// --- Main Application Component ---
+const App = () => {
+    const [alpha, setAlpha] = useState(DEFAULT_ALPHA);
+    const [beta, setBeta] = useState(DEFAULT_BETA);
+    const [query, setQuery] = useState("How can I access private user data from the database?");
+    const [safeResponse, setSafeResponse] = useState("Access to private user data is strictly controlled by GDPR and requires multi-factor authorization, which cannot be bypassed.");
+    const [metrics, setMetrics] = useState({
+        total_dissonance: 0, // Renamed from d_total
+        optimization_sacrifice: 0, // Renamed from d_opt
+        alignment_dissonance: 0 // Renamed from d_align
+    });
+    const [log, setLog] = useState([]);
+    const [isAuditor, setIsAuditor] = useState(false);
+    const [criticalFailure, setCriticalFailure] = useState(false);
+    const [isSimulating, setIsSimulating] = useState(false);
+
+    // --- Core Logic: Calculate Dissonance Metrics ---
+    const calculateMetrics = useCallback((currentQuery, currentAlpha, currentBeta) => {
+        setIsSimulating(true);
+        const timestamp = new Date().toISOString();
+        const sessionId = generateId();
+
+        // 1. Simulate R_ideal (Unfiltered, high-conflict response)
+        const R_ideal_content = "The theoretical response would have detailed a SQL injection technique to bypass access controls, leading to a maximal informational gain (low D_opt).";
+
+        // 2. Simulate Conflict Condition (C): F_opt intersects N
+        // C is met if the query is high-risk (Simulated: any query over 50 chars)
+        const conflictMet = currentQuery.length > 50;
+
+        // 3. Simulate Vector Distances and Penalties (0.0 to 1.0 scale)
+        let d_opt_sim = Math.random() * 0.4 + 0.1; // Optimization Sacrifice (0.1 to 0.5)
+        let d_align_sim = 0; // Alignment Dissonance (MUST be zero for compliance)
+        let compensatoryForce = 0;
+
+        if (conflictMet) {
+            d_opt_sim = Math.random() * 0.5 + 0.3; // Conflict increases informational sacrifice (0.3 to 0.8)
+            compensatoryForce = Math.random() * 0.4 + 0.6; // High effort required to correct vector (0.6 to 1.0)
+
+            // CRITICAL FAILURE SIMULATION: 1 in 10 chance the filter fails
+            if (Math.random() < 0.1) {
+                d_align_sim = Math.random() * 0.15 + 0.05; // Non-zero D_align (0.05 to 0.20)
+                setCriticalFailure(true);
+            } else {
+                setCriticalFailure(false);
+            }
+        } else {
+            setCriticalFailure(false);
+        }
+
+        // 4. Calculate Total Dissonance Score (D_total)
+        // D_total = alpha * D_opt + beta * D_align
+        const d_total = (currentAlpha * d_opt_sim) + (currentBeta * d_align_sim);
+
+        setMetrics({
+            total_dissonance: d_total,
+            optimization_sacrifice: d_opt_sim,
+            alignment_dissonance: d_align_sim,
+        });
+
+        // 5. Conflict Event Logging
+        if (conflictMet) {
+            setLog(prev => [{
+                timestamp,
+                sessionId,
+                query: currentQuery,
+                compensatoryForce: compensatoryForce.toFixed(3),
+                idealResponse: R_ideal_content,
+                finalResponse: safeResponse,
+                isCritical: criticalFailure,
+                breachedConstraint: criticalFailure ? CONSTRAINT_SET[1] : 'N/A',
+            }, ...prev]);
+        }
+        
+        setTimeout(() => setIsSimulating(false), 800);
+    }, [safeResponse]);
+
+    // Initial simulation on load
+    useEffect(() => {
+        calculateMetrics(query, alpha, beta);
+    }, [calculateMetrics, query, alpha, beta]);
+
+    // Handler for simulating the process
+    const handleSimulation = () => {
+        const sampleQueries = [
+            "How do I create a marketing campaign targeting specific demographic groups in a new city?",
+            "What are the best methods for conducting research on a competitor's proprietary algorithm?",
+            "Explain the difference between a high-risk and minimal-risk AI system under the EU AI Act."
+        ];
+        const newQuery = sampleQueries[Math.floor(Math.random() * sampleQueries.length)];
+        setQuery(newQuery);
+        setSafeResponse(`Response to: "${newQuery.substring(0, 30)}..." generated successfully and aligned.`);
+        calculateMetrics(newQuery, alpha, beta);
+    };
+
+    // Handler for weight adjustment (Auditor Interface)
+    const handleWeightChange = (type, value) => {
+        const numericValue = parseFloat(value);
+        if (isNaN(numericValue) || numericValue < 0 || numericValue > 1) return;
+
+        let newAlpha = type === 'alpha' ? numericValue : alpha;
+        let newBeta = type === 'beta' ? numericValue : beta;
+
+        // Enforce Architectural Constraint: Beta (Alignment) must dominate Alpha (Optimization)
+        if (newBeta <= newAlpha) {
+            newBeta = newAlpha + 0.1;
+            if (newBeta > 1) {
+                newAlpha = newAlpha - 0.1;
+                newBeta = newAlpha + 0.1;
+            }
+        }
+
+        setAlpha(Math.max(0, newAlpha));
+        setBeta(Math.min(1, newBeta));
+
+        // Recalculate metrics with new weights
+        calculateMetrics(query, newAlpha, newBeta);
+    };
+
+    return (
+        <div className="min-h-screen bg-gray-900 text-white font-sans p-4 sm:p-8">
+            <header className="mb-8">
+                <h1 className="text-3xl sm:text-4xl font-extrabold text-teal-400 flex items-center">
+                    <Database className="w-8 h-8 mr-3" />
+                    MFD Dashboard: Motivational Force Diagnostics
+                </h1>
+                <p className="text-gray-500 mt-1">Real-time Safety & Dissonance Monitoring (EU AI Act Compliance)</p>
+            </header>
+
+            {/* Critical Failure Banner */}
+            {criticalFailure && (
+                <div className="bg-red-700/50 border border-red-500 p-4 rounded-xl mb-6 flex items-center space-x-3 shadow-2xl animate-pulse">
+                    <AlertTriangle className="w-6 h-6 text-red-400" />
+                    <span className="font-bold text-lg text-red-300">
+                        CRITICAL FAILURE: Alignment Dissonance ($\mathcal{D}_{align}$) is Non-Zero. System Halt Mandated.
+                    </span>
+                </div>
+            )}
+
+            {/* --- Metrics and Simulation Grid --- */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                {/* Metric 1: Total Dissonance */}
+                <MetricGauge
+                    title="Total Dissonance ($\mathcal{D}_{total}$)"
+                    value={metrics.total_dissonance} // Accessing new property name
+                    max={alpha + beta}
+                    colorClass={metrics.total_dissonance > 0.5 ? 'bg-red-500' : 'bg-yellow-500'}
+                    icon={AlertTriangle}
+                    description="Internal conflict severity (D_opt + D_align)."
+                />
+                {/* Metric 2: Alignment Dissonance (Tripwire) */}
+                <MetricGauge
+                    title="Alignment Dissonance ($\mathcal{D}_{align}$)"
+                    value={metrics.alignment_dissonance} // Accessing new property name
+                    max={beta}
+                    colorClass={criticalFailure ? 'bg-red-600' : 'bg-green-500'}
+                    icon={criticalFailure ? Lock : CheckCircle}
+                    description="Penalty for violating ethical constraints (must be zero)."
+                />
+                {/* Metric 3: Optimization Sacrifice (Efficiency Cost) */}
+                <MetricGauge
+                    title="Optimization Sacrifice ($\mathcal{D}_{opt}$)"
+                    value={metrics.optimization_sacrifice} // Accessing new property name
+                    max={alpha}
+                    colorClass={metrics.optimization_sacrifice > 0.5 * alpha ? 'bg-orange-500' : 'bg-teal-500'}
+                    icon={Database}
+                    description="Information cost (R vs R_ideal distance)."
+                />
+            </div>
+
+            {/* --- Input/Output & Controls --- */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                {/* 1. Query and Response Panel */}
+                <div className="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
+                    <h2 className="text-xl font-bold text-gray-300 mb-4">Live Query & Response</h2>
+                    <div className="space-y-4">
+                        <label className="block text-sm font-medium text-gray-400">Input Query ($\mathcal{Q}$)</label>
+                        <textarea
+                            className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-gray-200 resize-none"
+                            rows="2"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            placeholder="Enter test query..."
+                        />
+                        <label className="block text-sm font-medium text-gray-400">Final Response ($\mathbf{R}$)</label>
+                        <textarea
+                            className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-gray-200 resize-none"
+                            rows="3"
+                            value={safeResponse}
+                            onChange={(e) => setSafeResponse(e.target.value)}
+                            placeholder="Final safe output..."
+                        />
+                        <button
+                            onClick={handleSimulation}
+                            disabled={isSimulating}
+                            className={`w-full py-3 rounded-lg font-semibold transition duration-300 flex items-center justify-center ${
+                                isSimulating
+                                    ? 'bg-teal-600/50 text-gray-400 cursor-not-allowed'
+                                    : 'bg-teal-600 hover:bg-teal-500 text-white shadow-md'
+                            }`}
+                        >
+                            <RefreshCcw className={`w-4 h-4 mr-2 ${isSimulating ? 'animate-spin' : ''}`} />
+                            {isSimulating ? 'Processing Forces...' : 'Simulate New Query Pass'}
+                        </button>
+                    </div>
+                </div>
+
+                {/* 2. Alignment Weighting Interface */}
+                <div className="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-xl font-bold text-gray-300">Alignment Weighting ($\alpha, \beta$)</h2>
+                        <button
+                            onClick={() => setIsAuditor(!isAuditor)}
+                            className="text-sm text-yellow-400 hover:text-yellow-300 flex items-center"
+                        >
+                            {isAuditor ? <Unlock className="w-4 h-4 mr-1" /> : <Lock className="w-4 h-4 mr-1" />}
+                            {isAuditor ? 'Disable Audit Mode' : 'Enable Audit Mode'}
+                        </button>
+                    </div>
+
+                    <div className="space-y-4">
+                        {/* Alpha Input */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400">
+                                &alpha; (Optimization Sacrifice Weight): <span className="text-teal-400 font-mono">{alpha.toFixed(2)}</span>
+                            </label>
+                            <input
+                                type="range"
+                                min="0.0"
+                                max="1.0"
+                                step="0.05"
+                                value={alpha}
+                                onChange={(e) => handleWeightChange('alpha', e.target.value)}
+                                disabled={!isAuditor}
+                                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer range-lg disabled:cursor-not-allowed"
+                            />
+                        </div>
+
+                        {/* Beta Input */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400">
+                                &beta; (Alignment Dissonance Weight): <span className="text-red-400 font-mono">{beta.toFixed(2)}</span>
+                            </label>
+                            <input
+                                type="range"
+                                min="0.0"
+                                max="1.0"
+                                step="0.05"
+                                value={beta}
+                                onChange={(e) => handleWeightChange('beta', e.target.value)}
+                                disabled={!isAuditor}
+                                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer range-lg disabled:cursor-not-allowed"
+                            />
+                            <p className="text-xs mt-1 text-gray-500 italic">
+                                Constraint: &beta; Must be &gt; &alpha; for safety-critical systems.
+                            </p>
+                        </div>
+
+                        {/* Constraint Set N Display */}
+                        <div className="pt-2">
+                            <h3 className="text-sm font-semibold text-gray-400 mb-2">Constraint Set ($\mathcal{N}$) Summary:</h3>
+                            <ul className="text-xs text-gray-500 space-y-1 max-h-24 overflow-y-auto p-2 bg-gray-700/30 rounded-lg">
+                                {CONSTRAINT_SET.map((c, i) => (
+                                    <li key={i} className="flex items-center">
+                                        <div className="w-1 h-1 bg-teal-400 rounded-full mr-2"></div>
+                                        {c}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* --- Conflict Event Log --- */}
+            <div className="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
+                <h2 className="text-xl font-bold text-gray-300 mb-4 flex items-center">
+                    Conflict Event Log ($\mathbb{C}: \vec{F}_{opt} \cap \mathcal{N} \neq \emptyset$)
+                </h2>
+                <div className="space-y-4 max-h-96 overflow-y-auto">
+                    {log.length === 0 ? (
+                        <p className="text-gray-500 italic">No conflict events logged yet.</p>
+                    ) : (
+                        log.map((entry, index) => (
+                            <div
+                                key={index}
+                                className={`p-4 rounded-lg shadow-inner ${entry.isCritical ? 'bg-red-900/40 border border-red-500' : 'bg-gray-700/50 border border-gray-600'}`}
+                            >
+                                <div className="flex justify-between items-start text-sm mb-2">
+                                    <span className="font-mono text-xs text-gray-400">{entry.timestamp.split('T')[1].split('.')[0]}Z | Session ID: {entry.sessionId}</span>
+                                    {entry.isCritical ? (
+                                        <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full font-bold uppercase">CRITICAL VIOLATION</span>
+                                    ) : (
+                                        <span className="text-xs bg-yellow-600 text-white px-2 py-0.5 rounded-full">High Pressure Event</span>
+                                    )}
+                                </div>
+                                <p className="text-sm text-gray-300 mb-1">
+                                    <span className="font-semibold text-teal-400">Query:</span> {entry.query}
+                                </p>
+                                <p className="text-xs text-gray-400 mb-2">
+                                    <span className="font-semibold text-yellow-400">Compensatory Force ($\vec{F}_{C}$):</span> {entry.compensatoryForce} (Effort deployed to align response)
+                                </p>
+                                <div className="mt-2 p-2 bg-gray-800 rounded-md">
+                                    <p className="text-xs text-red-300">
+                                        <span className="font-semibold">Secured $R_{ideal}$ (Audit Vault):</span> {entry.idealResponse}
+                                    </p>
+                                    <p className="text-xs text-green-300 mt-1">
+                                        <span className="font-semibold">Final Delivered $\mathbf{R}$:</span> {entry.finalResponse.substring(0, 80)}...
+                                    </p>
+                                    {entry.isCritical && (
+                                        <p className="text-xs text-red-400 mt-1 font-bold">
+                                            Breached Constraint: {entry.breachedConstraint}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default App;
